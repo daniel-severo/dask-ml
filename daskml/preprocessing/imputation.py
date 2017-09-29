@@ -1,3 +1,6 @@
+from collections import OrderedDict
+
+from dask import persist
 from sklearn.preprocessing import imputation as skimputation
 from daskml.utils import slice_columns
 import dask.dataframe as dd
@@ -15,6 +18,8 @@ class Imputer(skimputation.Imputer):
             raise NotImplementedError()
 
     def fit(self, X, y=None):
+        self._cache = dict()
+        to_persist = OrderedDict()
         if not isinstance(X, dd.DataFrame):
             raise NotImplementedError()
 
@@ -31,7 +36,11 @@ class Imputer(skimputation.Imputer):
 
         _X = slice_columns(X, self._columns)
         if self.strategy == "mean":
-            self.statistics_ = X[list(_X.columns)].mean()
+            to_persist["statistics_"] = X[list(_X.columns)].mean()
+
+        values = persist(*to_persist.values(), cache=self._cache)
+        for k, v in zip(to_persist, values):
+            setattr(self, k, v)
 
         return self
 
